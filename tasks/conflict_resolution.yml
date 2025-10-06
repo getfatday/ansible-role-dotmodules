@@ -39,4 +39,6 @@
     msg: |
       File strategies resolved:
       - Mergeable files: {{ unique_mergeable_files }}
+      - Modules with mergeable files: {{ modules_with_mergeable_files | default([]) }}
+      - Stow directories (filtered): {{ stow_dirs_filtered | default([]) }}
       - Conflicts: {{ conflict_test_zshrc is defined and conflict_test_zshrc.stat.exists and 'YES' or 'NO' }}

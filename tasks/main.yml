@@ -96,12 +96,41 @@
   ansible.builtin.include_tasks: merge_files.yml
   when: dotmodules.install | length > 0
 
-# Run Stow once for all modules (non-mergeable files)
-- name: Deploy all dotfiles using stow
+# Filter out modules that have mergeable files to prevent conflicts
+- name: Create list of modules with mergeable files
+  ansible.builtin.set_fact:
+    modules_with_mergeable_files: >-
+      {{
+        dotmodules.install | select('in', collected_configs)
+        | select('extract', collected_configs, 'mergeable_files')
+        | select('defined') | select('length') | select('>', 0)
+        | list
+      }}
+
+- name: Debug filtering results
+  ansible.builtin.debug:
+    msg: |
+      Filtering results:
+      - Original stow_dirs: {{ stow_dirs }}
+      - Modules with mergeable files: {{ modules_with_mergeable_files }}
+      - Collected configs keys: {{ collected_configs.keys() | list }}
+
+- name: Filter stow directories to exclude modules with mergeable files
+  ansible.builtin.set_fact:
+    stow_dirs_filtered: "{{ stow_dirs | difference(modules_with_mergeable_files) }}"
+
+- name: Debug final filtering results
+  ansible.builtin.debug:
+    msg: |
+      Final filtering results:
+      - Filtered stow_dirs: {{ stow_dirs_filtered }}
+
+# Run Stow once for all modules (excluding those with mergeable files)
+- name: Deploy all dotfiles using stow (non-mergeable files only)
   ansible.builtin.command: >-
     stow -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ ansible_env.HOME }}" files
-  loop: "{{ stow_dirs }}"
-  when: stow_dirs | length > 0
+  loop: "{{ stow_dirs_filtered }}"
+  when: stow_dirs_filtered | length > 0
 
 # Run Homebrew installation once for all modules
 - name: Run Mac App Store installation for all modules using the collection
