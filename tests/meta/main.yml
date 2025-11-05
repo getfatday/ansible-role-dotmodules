@@ -5,8 +5,8 @@ galaxy_info:
   role_name: dotmodules
   description: >
     Provides common capabilities for dotfile management and macOS configuration.
-    This role leverages the geerlingguy.mac.homebrew role to install and manage
-    Homebrew packages, and includes tasks for deploying dotfiles and applying OS X defaults.
+    This role uses community.general modules to install and manage Homebrew packages,
+    and includes tasks for deploying dotfiles and applying OS X defaults.
     **WARNING: This role is highly experimental and currently untested. Use at your own risk!**
   company: getfatday
   license: MIT
@@ -21,5 +21,6 @@ galaxy_info:
 
   collections:
     - geerlingguy.mac
+    - community.general
 
 dependencies: []

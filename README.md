@@ -8,7 +8,7 @@ A modular Ansible role for managing dotfiles and macOS configuration. This role 
 - **GNU Stow Integration**: Leverages GNU Stow for clean symlink-based dotfile deployment
 - **File Merging Support**: Intelligent merging of shared configuration files (e.g., `.zshrc`, `.bashrc`)
 - **Conflict Resolution**: Automatic detection and resolution of file strategy conflicts
-- **Homebrew Integration**: Seamless package management via `geerlingguy.mac.homebrew`
+- **Homebrew Integration**: Seamless package management via `community.general` modules
 - **Mac App Store Integration**: App installation via `geerlingguy.mac.mas`
 - **Ansible Best Practices**: Follows Ansible conventions and uses recommended modules
 
@@ -47,8 +47,8 @@ alias grep='grep --color=auto'
 
 - **Operating System:** macOS
 - **Ansible:** Version 2.9 or higher is recommended.
-- **Homebrew:** Must be installed on the target machine.
-- **Dependencies:** This role depends on the [geerlingguy.mac.homebrew](https://galaxy.ansible.com/geerlingguy/mac/homebrew) role, which will be invoked to manage Homebrew packages.
+- **Homebrew:** Must be installed on the target machine (typically installed by the [ansible-control-bootstrap](https://github.com/getfatday/ansible-control-bootstrap) script before this role runs).
+- **Dependencies:** This role requires the `community.general` Ansible collection, which provides the Homebrew modules (`homebrew`, `homebrew_cask`, `homebrew_tap`) used to manage Homebrew packages.
 
 ## Role Variables
 
@@ -101,8 +101,11 @@ stow_dirs:
 
 This role depends on:
 
-- **geerlingguy.mac.homebrew**
-  Ensure that this role is installed or available via Ansible Galaxy. It is automatically invoked within the dotmodules tasks to manage Homebrew packages.
+- **community.general** collection
+  Provides the Homebrew modules (`homebrew`, `homebrew_cask`, `homebrew_tap`) used to manage Homebrew packages, taps, and casks. Install via `ansible-galaxy collection install community.general`.
+
+- **geerlingguy.mac** collection (optional)
+  Only required if using Mac App Store (MAS) functionality. Provides the `geerlingguy.mac.mas` role for installing Mac App Store applications.
 
 ---
 

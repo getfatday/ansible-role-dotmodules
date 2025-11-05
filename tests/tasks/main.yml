@@ -102,11 +102,25 @@
     | selectattr('key', 'match', '^mas_')
     | list | length > 0
 
-  # Run Homebrew installation once for all modules
-- name: Run Homebrew installation for all modules using the collection
-  ansible.builtin.include_role:
-    name: "geerlingguy.mac.homebrew"
-  when: >
-    final_config | dict2items
-    | selectattr('key', 'match', '^homebrew_')
-    | list | length > 0
+# Run Homebrew installation using direct modules (no sudo required)
+- name: Ensure configured Homebrew taps are tapped
+  community.general.homebrew_tap:
+    tap: "{{ item }}"
+    state: present
+  loop: "{{ homebrew_taps | default([]) }}"
+  when: homebrew_taps is defined and homebrew_taps | length > 0
+
+- name: Ensure configured Homebrew packages are installed
+  community.general.homebrew:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ homebrew_packages | default([]) }}"
+  when: homebrew_packages is defined and homebrew_packages | length > 0
+
+- name: Install configured Homebrew casks
+  community.general.homebrew_cask:
+    name: "{{ item }}"
+    state: present
+    accept_external_apps: yes
+  loop: "{{ homebrew_casks | default([]) }}"
+  when: homebrew_casks is defined and homebrew_casks | length > 0

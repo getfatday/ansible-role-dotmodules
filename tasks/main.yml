@@ -95,6 +95,7 @@
 # Filter out modules that have mergeable files to prevent conflicts
 - name: Create list of modules with mergeable files
   ansible.builtin.set_fact:
+<<<<<<< HEAD
     modules_with_mergeable_files: []
 
 - name: Check each module for mergeable files
@@ -108,6 +109,14 @@
       }}
   loop: "{{ dotmodules.install }}"
   when: item in collected_configs
+=======
+    modules_with_mergeable_files: "{{ modules_with_mergeable_files | default([]) + [item] }}"
+  loop: "{{ dotmodules.install }}"
+  when: >
+    item in collected_configs
+    and collected_configs[item].mergeable_files is defined
+    and collected_configs[item].mergeable_files | length > 0
+>>>>>>> 5c3e36f (Refactor: Replace geerlingguy.mac.homebrew with direct Ansible modules)
 
 - name: Debug filtering results
   ansible.builtin.debug:
@@ -143,17 +152,25 @@
     | selectattr('key', 'match', '^mas_')
     | list | length > 0
 
-
-  # Run Homebrew installation once for all modules
-- name: Install Homebrew packages
-  community.general.homebrew:
-    name: "{{ homebrew_packages }}"
+# Run Homebrew installation using direct modules (no sudo required)
+- name: Ensure configured Homebrew taps are tapped
+  community.general.homebrew_tap:
+    tap: "{{ item }}"
     state: present
+  loop: "{{ homebrew_taps | default([]) }}"
+  when: homebrew_taps is defined and homebrew_taps | length > 0
+
+- name: Ensure configured Homebrew packages are installed
+  community.general.homebrew:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ homebrew_packages | default([]) }}"
   when: homebrew_packages is defined and homebrew_packages | length > 0
 
-- name: Install Homebrew casks
+- name: Install configured Homebrew casks
   community.general.homebrew_cask:
-    name: "{{ homebrew_casks }}"
+    name: "{{ item }}"
     state: present
     accept_external_apps: yes
+  loop: "{{ homebrew_casks | default([]) }}"
   when: homebrew_casks is defined and homebrew_casks | length > 0

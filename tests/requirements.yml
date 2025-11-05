@@ -2,7 +2,7 @@
 collections:
   - name: geerlingguy.mac
     version: ">=1.0.0"
-
-roles:
-  - name: geerlingguy.mac.homebrew
+  - name: community.general
     version: ">=1.0.0"
+
+roles: []
