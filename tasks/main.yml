@@ -123,7 +123,7 @@
 # Run Stow once for all modules (excluding those with mergeable files)
 - name: Deploy all dotfiles using stow (non-mergeable files only)
   ansible.builtin.command: >-
-    stow --adopt -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ ansible_env.HOME }}" files
+    stow --adopt --no-folding -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ ansible_env.HOME }}" files
   loop: "{{ stow_dirs_filtered }}"
   when: stow_dirs_filtered | length > 0
 
