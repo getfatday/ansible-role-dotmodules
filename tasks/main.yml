@@ -155,6 +155,42 @@
   loop: "{{ parent_dirs | default([]) }}"
   when: parent_dirs is defined and parent_dirs | length > 0
 
+# Remove old stow tree-fold symlinks that point into module source directories.
+# These cause ansible's file module to follow through and corrupt source files.
+- name: Check for tree-fold symlinks in HOME from old stow runs
+  ansible.builtin.stat:
+    path: "{{ ansible_env.HOME }}/{{ item }}"
+  register: home_path_stats
+  loop: "{{ parent_dirs | default([]) }}"
+  when: parent_dirs is defined and parent_dirs | length > 0
+
+- name: Remove tree-fold symlinks and replace with real directories
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/{{ item.item }}"
+    state: absent
+  loop: "{{ home_path_stats.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item | default('') }}"
+  when:
+    - home_path_stats.results is defined
+    - item.stat is defined
+    - item.stat.islnk is defined
+    - item.stat.islnk
+
+- name: Recreate directories after removing tree-fold symlinks
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/{{ item.item }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ home_path_stats.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item | default('') }}"
+  when:
+    - home_path_stats.results is defined
+    - item.stat is defined
+    - item.stat.islnk is defined
+    - item.stat.islnk
+
 - name: Find all files in module files directories
   ansible.builtin.find:
     paths: "{{ dotmodules.dest }}/{{ item }}/files"
@@ -196,6 +232,7 @@
     dest: "{{ ansible_env.HOME }}/{{ item.1 }}"
     state: link
     force: yes
+    follow: no
   loop: "{{ symlink_sources | zip(symlink_map) | list }}"
   loop_control:
     label: "{{ item.1 }}"
