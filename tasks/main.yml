@@ -155,12 +155,51 @@
   loop: "{{ parent_dirs | default([]) }}"
   when: parent_dirs is defined and parent_dirs | length > 0
 
-# Run Stow once for all modules (excluding those with mergeable files)
-- name: Deploy all dotfiles using stow (non-mergeable files only)
-  ansible.builtin.command: >-
-    stow --adopt --no-folding --override='.*' -d "{{ dotmodules.dest }}/{{ item }}" -t "{{ ansible_env.HOME }}" files
+- name: Find all files in module files directories
+  ansible.builtin.find:
+    paths: "{{ dotmodules.dest }}/{{ item }}/files"
+    recurse: yes
+    file_type: file
+    hidden: yes
+  register: module_files
   loop: "{{ stow_dirs_filtered }}"
   when: stow_dirs_filtered | length > 0
+
+- name: Build symlink map from module files
+  ansible.builtin.set_fact:
+    symlink_map: >-
+      {{
+        module_files.results
+        | selectattr('files', 'defined')
+        | map(attribute='files')
+        | flatten
+        | map(attribute='path')
+        | map('regex_replace',
+            '^' + (dotmodules.dest | regex_escape) + '/[^/]+/files/(.+)$',
+            '\1')
+        | list
+      }}
+    symlink_sources: >-
+      {{
+        module_files.results
+        | selectattr('files', 'defined')
+        | map(attribute='files')
+        | flatten
+        | map(attribute='path')
+        | list
+      }}
+  when: stow_dirs_filtered | length > 0
+
+- name: Create dotfile symlinks in HOME
+  ansible.builtin.file:
+    src: "{{ item.0 }}"
+    dest: "{{ ansible_env.HOME }}/{{ item.1 }}"
+    state: link
+    force: yes
+  loop: "{{ symlink_sources | zip(symlink_map) | list }}"
+  loop_control:
+    label: "{{ item.1 }}"
+  when: symlink_map is defined and symlink_map | length > 0
 
 # Install git repositories (before Homebrew to ensure dependencies are available)
 - name: Ensure configured git repositories are installed
