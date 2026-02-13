@@ -120,6 +120,41 @@
       Final filtering results:
       - Filtered stow_dirs: {{ stow_dirs_filtered }}
 
+# Pre-create shared parent directories to prevent stow ownership conflicts
+- name: Find all directories in module files subdirectories
+  ansible.builtin.find:
+    paths: "{{ dotmodules.dest }}/{{ item }}/files"
+    recurse: yes
+    file_type: directory
+  register: module_dirs
+  loop: "{{ stow_dirs_filtered }}"
+  when: stow_dirs_filtered | length > 0
+
+- name: Collect unique parent directory paths
+  ansible.builtin.set_fact:
+    parent_dirs: >-
+      {{
+        module_dirs.results
+        | selectattr('files', 'defined')
+        | map(attribute='files')
+        | flatten
+        | map(attribute='path')
+        | map('regex_replace', '^' + (dotmodules.dest | regex_escape) + '/[^/]+/files/?', '')
+        | select('string')
+        | reject('equalto', '')
+        | unique
+        | sort
+      }}
+  when: stow_dirs_filtered | length > 0
+
+- name: Pre-create parent directories in HOME
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/{{ item }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ parent_dirs | default([]) }}"
+  when: parent_dirs is defined and parent_dirs | length > 0
+
 # Run Stow once for all modules (excluding those with mergeable files)
 - name: Deploy all dotfiles using stow (non-mergeable files only)
   ansible.builtin.command: >-
