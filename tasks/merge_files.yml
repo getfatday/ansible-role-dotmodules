@@ -29,6 +29,8 @@
 - name: Deploy merged files using stow
   ansible.builtin.command: >-
     stow --adopt -d "{{ dotmodules.dest }}/merged" -t "{{ ansible_env.HOME }}" .
+  environment:
+    PATH: "/opt/homebrew/bin:/usr/local/bin:{{ ansible_env.PATH }}"
   when: unique_mergeable_files | length > 0
   register: merged_stow_result
 
