@@ -5,7 +5,7 @@
 - name: Collect mergeable files from all modules
   ansible.builtin.set_fact:
     all_mergeable_files: "{{ all_mergeable_files | default([]) + (collected_configs[item].mergeable_files | default([])) }}"
-  loop: "{{ dotmodules.install }}"
+  loop: "{{ dotmodules_install }}"
 
 - name: Get unique mergeable files
   ansible.builtin.set_fact:
@@ -13,22 +13,22 @@
 
 - name: Create merged files directory
   ansible.builtin.file:
-    path: "{{ dotmodules.dest }}/merged"
+    path: "{{ dotmodules_dest }}/merged"
     state: directory
 
 - name: Merge files from all contributing modules
   ansible.builtin.template:
     src: "merged_file.j2"
-    dest: "{{ dotmodules.dest }}/merged/{{ item }}"
+    dest: "{{ dotmodules_dest }}/merged/{{ item }}"
     mode: '0644'
   loop: "{{ unique_mergeable_files }}"
   vars:
     target_file: "{{ item }}"
-    contributing_modules: "{{ dotmodules.install }}"
+    contributing_modules: "{{ dotmodules_install }}"
 
 - name: Deploy merged files using stow
   ansible.builtin.command: >-
-    stow --adopt -d "{{ dotmodules.dest }}/merged" -t "{{ ansible_env.HOME }}" .
+    stow --adopt -d "{{ dotmodules_dest }}/merged" -t "{{ ansible_env.HOME }}" .
   environment:
     PATH: "/opt/homebrew/bin:/usr/local/bin:{{ ansible_env.PATH }}"
   when: unique_mergeable_files | length > 0

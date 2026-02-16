@@ -1,5 +1,4 @@
 ---
-dotmodules:
-  repo: "https://github.com/getfatday/dotmodules.git"
-  install: []
-  dest: "{{ ansible_env.HOME }}/.dotmodules"  # Where to clone the repo
+dotmodules_repo: "https://github.com/getfatday/dotmodules.git"
+dotmodules_install: []
+dotmodules_dest: "{{ ansible_env.HOME }}/.dotmodules"

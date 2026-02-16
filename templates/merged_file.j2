@@ -8,7 +8,7 @@
 # Manual changes to this file will be overwritten.
 
 {% for module_name in contributing_modules %}
-{% set module_file = dotmodules.dest + '/' + module_name + '/files/' + target_file %}
+{% set module_file = dotmodules_dest + '/' + module_name + '/files/' + target_file %}
 {% if module_file is file %}
 # =============================================================================
 # {{ module_name | upper }} MODULE CONTRIBUTION

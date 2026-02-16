@@ -1,17 +1,17 @@
 ---
-- name: Determine if dotmodules.repo is a local path
+- name: Determine if dotmodules_repo is a local path
   set_fact:
-    dotmodules_repo_local: "{{ dotmodules.repo is match('^(file://|/).*') }}"
+    dotmodules_repo_local: "{{ dotmodules_repo is match('^(file://|/).*') }}"
 
 - name: Remove file:// prefix if present
   set_fact:
-    dotmodules_repo_path: "{{ dotmodules.repo | regex_replace('^file://', '') }}"
+    dotmodules_repo_path: "{{ dotmodules_repo | regex_replace('^file://', '') }}"
   when: dotmodules_repo_local
 
 - name: Clone or update dotmodules repository (remote)
   ansible.builtin.git:
-    repo: "{{ dotmodules.repo }}"
-    dest: "{{ dotmodules.dest }}"
+    repo: "{{ dotmodules_repo }}"
+    dest: "{{ dotmodules_dest }}"
     version: "main"
     force: yes
   when: not dotmodules_repo_local
@@ -19,7 +19,7 @@
 - name: Link dotmodules folder (for testing)
   ansible.builtin.file:
     src: "{{ dotmodules_repo_path }}"
-    dest: "{{ dotmodules.dest }}"
+    dest: "{{ dotmodules_dest }}"
     state: link
   when: dotmodules_repo_local
 
@@ -31,7 +31,7 @@
 
 - name: Process each dotmodule in the install list
   ansible.builtin.include_tasks: process_module.yml
-  loop: "{{ dotmodules.install }}"
+  loop: "{{ dotmodules_install }}"
   loop_control:
     loop_var: module_name
 
@@ -85,13 +85,13 @@
 # Resolve file strategy conflicts first
 - name: Resolve file strategy conflicts
   ansible.builtin.include_tasks: conflict_resolution.yml
-  when: dotmodules.install | length > 0
+  when: dotmodules_install | length > 0
 
 # Filter out modules that have mergeable files to prevent conflicts
 - name: Create list of modules with mergeable files
   ansible.builtin.set_fact:
     modules_with_mergeable_files: "{{ modules_with_mergeable_files | default([]) + [item] }}"
-  loop: "{{ dotmodules.install }}"
+  loop: "{{ dotmodules_install }}"
   when: >
     item in collected_configs
     and collected_configs[item].mergeable_files is defined
@@ -118,7 +118,7 @@
 # Pre-create shared parent directories to prevent stow ownership conflicts
 - name: Find all directories in module files subdirectories
   ansible.builtin.find:
-    paths: "{{ dotmodules.dest }}/{{ item }}/files"
+    paths: "{{ dotmodules_dest }}/{{ item }}/files"
     recurse: yes
     file_type: directory
   register: module_dirs
@@ -134,7 +134,7 @@
         | map(attribute='files')
         | flatten
         | map(attribute='path')
-        | map('regex_replace', '^' + (dotmodules.dest | regex_escape) + '/[^/]+/files/?', '')
+        | map('regex_replace', '^' + (dotmodules_dest | regex_escape) + '/[^/]+/files/?', '')
         | select('string')
         | reject('equalto', '')
         | unique
@@ -188,7 +188,7 @@
 
 - name: Find all files in module files directories
   ansible.builtin.find:
-    paths: "{{ dotmodules.dest }}/{{ item }}/files"
+    paths: "{{ dotmodules_dest }}/{{ item }}/files"
     recurse: yes
     file_type: file
     hidden: yes
@@ -206,7 +206,7 @@
         | flatten
         | map(attribute='path')
         | map('regex_replace',
-            '^' + (dotmodules.dest | regex_escape) + '/[^/]+/files/(.+)$',
+            '^' + (dotmodules_dest | regex_escape) + '/[^/]+/files/(.+)$',
             '\1')
         | list
       }}
@@ -236,7 +236,7 @@
 # Handle mergeable files (after individual symlinks so a stow failure doesn't block them)
 - name: Process mergeable files
   ansible.builtin.include_tasks: merge_files.yml
-  when: dotmodules.install | length > 0
+  when: dotmodules_install | length > 0
 
 # Install git repositories (before Homebrew to ensure dependencies are available)
 - name: Ensure configured git repositories are installed
@@ -284,14 +284,3 @@
     accept_external_apps: yes
   loop: "{{ homebrew_casks | default([]) }}"
   when: homebrew_casks is defined and homebrew_casks | length > 0
-
-# Apply macOS defaults for all modules
-- name: Apply macOS defaults for all modules
-  community.general.osx_defaults:
-    domain: "{{ item.domain }}"
-    key: "{{ item.key }}"
-    type: "{{ item.type | default('string') }}"
-    value: "{{ item.value }}"
-    state: present
-  loop: "{{ macos_defaults | default([]) }}"
-  when: macos_defaults is defined and macos_defaults | length > 0

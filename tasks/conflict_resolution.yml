@@ -5,7 +5,7 @@
 - name: Collect all mergeable files from modules
   ansible.builtin.set_fact:
     all_mergeable_files: "{{ all_mergeable_files | default([]) + (collected_configs[item].mergeable_files | default([])) }}"
-  loop: "{{ dotmodules.install }}"
+  loop: "{{ dotmodules_install }}"
 
 - name: Get unique mergeable files
   ansible.builtin.set_fact:
@@ -13,7 +13,7 @@
 
 - name: Check for .zshrc in conflict-test module
   ansible.builtin.stat:
-    path: "{{ dotmodules.dest }}/conflict-test/files/.zshrc"
+    path: "{{ dotmodules_dest }}/conflict-test/files/.zshrc"
   register: conflict_test_zshrc
   when: unique_mergeable_files | length > 0 and '.zshrc' in unique_mergeable_files
 

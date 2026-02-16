@@ -1,7 +1,7 @@
 ---
 - name: Load configuration for {{ module_name }}
   ansible.builtin.include_vars:
-    file: "{{ dotmodules.dest }}/{{ module_name }}/config.yml"
+    file: "{{ dotmodules_dest }}/{{ module_name }}/config.yml"
   register: module_config
 
 # Collect module configuration (global scope)
