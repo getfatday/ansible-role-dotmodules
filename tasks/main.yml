@@ -283,3 +283,14 @@
     accept_external_apps: yes
   loop: "{{ homebrew_casks | default([]) }}"
   when: homebrew_casks is defined and homebrew_casks | length > 0
+
+# Apply macOS defaults for all modules
+- name: Apply macOS defaults for all modules
+  community.general.osx_defaults:
+    domain: "{{ item.domain }}"
+    key: "{{ item.key }}"
+    type: "{{ item.type | default('string') }}"
+    value: "{{ item.value }}"
+    state: present
+  loop: "{{ macos_defaults | default([]) }}"
+  when: macos_defaults is defined and macos_defaults | length > 0
