@@ -142,55 +142,29 @@
       }}
   when: stow_dirs_filtered | length > 0
 
-- name: Pre-create parent directories in HOME
-  ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/{{ item }}"
-    state: directory
-    mode: '0755'
+# Ensure real directories exist in HOME, removing any stow tree-fold symlinks.
+# Ansible's file module with state:directory silently follows symlinks, so we
+# use test -L in shell for reliable detection.
+- name: Ensure real directories in HOME (remove stow tree-folds)
+  ansible.builtin.shell: |
+    target="{{ ansible_env.HOME }}/{{ item }}"
+    if [ -L "$target" ]; then
+      echo "REMOVED: $target -> $(readlink "$target")"
+      rm "$target"
+      mkdir -p "$target"
+      chmod 0755 "$target"
+    elif [ ! -d "$target" ]; then
+      mkdir -p "$target"
+      chmod 0755 "$target"
+    fi
   loop: "{{ parent_dirs | default([]) }}"
   when: parent_dirs is defined and parent_dirs | length > 0
-
-# Remove old stow tree-fold symlinks that point into module source directories.
-# These cause ansible's file module to follow through and corrupt source files.
-- name: Check for tree-fold symlinks in HOME from old stow runs
-  ansible.builtin.stat:
-    path: "{{ ansible_env.HOME }}/{{ item }}"
-  register: home_path_stats
-  loop: "{{ parent_dirs | default([]) }}"
-  when: parent_dirs is defined and parent_dirs | length > 0
-
-- name: Remove tree-fold symlinks and replace with real directories
-  ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/{{ item.item }}"
-    state: absent
-  loop: "{{ home_path_stats.results | default([]) }}"
-  loop_control:
-    label: "{{ item.item | default('') }}"
-  when:
-    - home_path_stats.results is defined
-    - item.stat is defined
-    - item.stat.islnk is defined
-    - item.stat.islnk
-
-- name: Recreate directories after removing tree-fold symlinks
-  ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/{{ item.item }}"
-    state: directory
-    mode: '0755'
-  loop: "{{ home_path_stats.results | default([]) }}"
-  loop_control:
-    label: "{{ item.item | default('') }}"
-  when:
-    - home_path_stats.results is defined
-    - item.stat is defined
-    - item.stat.islnk is defined
-    - item.stat.islnk
 
 - name: Find all files in module files directories
   ansible.builtin.find:
     paths: "{{ dotmodules_dest }}/{{ item }}/files"
     recurse: yes
-    file_type: file
+    file_type: any
     hidden: yes
   register: module_files
   loop: "{{ stow_dirs_filtered }}"
@@ -204,6 +178,7 @@
         | selectattr('files', 'defined')
         | map(attribute='files')
         | flatten
+        | rejectattr('isdir')
         | map(attribute='path')
         | map('regex_replace',
             '^' + (dotmodules_dest | regex_escape) + '/[^/]+/files/(.+)$',
@@ -216,6 +191,7 @@
         | selectattr('files', 'defined')
         | map(attribute='files')
         | flatten
+        | rejectattr('isdir')
         | map(attribute='path')
         | list
       }}
