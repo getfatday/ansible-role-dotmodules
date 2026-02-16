@@ -257,7 +257,8 @@
   ansible.builtin.include_role:
     name: "geerlingguy.mac.mas"
   when: >
-    final_config | dict2items
+    not (dotmodules_skip_mas_role | default(false) | bool)
+    and final_config | dict2items
     | selectattr('key', 'match', '^mas_')
     | list | length > 0
 
