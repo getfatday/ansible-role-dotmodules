@@ -68,12 +68,19 @@ The following variables can be set to customize the behavior of this role:
   List of modules to install and configure.
   *Default:* `[]`
 
+- **`dotm_platform`**
+  The machine's platform as a capability list. `brew` in the list enables the Homebrew tap,
+  package and cask tasks; `apt` enables the apt task (which runs with `become`).
+  *Default:* `['macos', 'brew', 'gui']` (a Mac with Homebrew; unchanged behavior when unset)
+
 ### Module Configuration
 
 Each module can specify the following variables in its `config.yml`:
 
 - **`homebrew_packages`**: List of Homebrew packages to install
 - **`homebrew_taps`**: List of Homebrew taps to add
+- **`homebrew_casks`**: List of Homebrew casks to install
+- **`apt_packages`**: List of Debian/Ubuntu packages to install where `dotm_platform` includes `apt`
 - **`mas_installed_apps`**: List of Mac App Store apps to install
 - **`stow_dirs`**: List of directories to deploy via GNU Stow
 - **`mergeable_files`**: List of files to merge with other modules

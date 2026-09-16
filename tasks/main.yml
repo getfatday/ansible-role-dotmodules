@@ -102,12 +102,12 @@
     msg: |
       Filtering results:
       - Original stow_dirs: {{ stow_dirs }}
-      - Modules with mergeable files: {{ modules_with_mergeable_files }}
+      - Modules with mergeable files: {{ modules_with_mergeable_files | default([]) }}
       - Collected configs keys: {{ collected_configs.keys() | list }}
 
 - name: Filter stow directories to exclude modules with mergeable files
   ansible.builtin.set_fact:
-    stow_dirs_filtered: "{{ stow_dirs | difference(modules_with_mergeable_files) }}"
+    stow_dirs_filtered: "{{ stow_dirs | difference(modules_with_mergeable_files | default([])) }}"
 
 - name: Debug final filtering results
   ansible.builtin.debug:
@@ -238,20 +238,22 @@
     | selectattr('key', 'match', '^mas_')
     | list | length > 0
 
+# Package managers are gated on the machine's platform capability list (dotm_platform, passed by
+# dotm sync from ~/.config/dotm/config.yml; a machine that declares none is a Mac with Homebrew).
 # Run Homebrew installation using direct modules (no sudo required)
 - name: Ensure configured Homebrew taps are tapped
   community.general.homebrew_tap:
     tap: "{{ item }}"
     state: present
   loop: "{{ homebrew_taps | default([]) }}"
-  when: homebrew_taps is defined and homebrew_taps | length > 0
+  when: "'brew' in (dotm_platform | default(['macos', 'brew', 'gui'])) and homebrew_taps is defined and homebrew_taps | length > 0"
 
 - name: Ensure configured Homebrew packages are installed
   community.general.homebrew:
     name: "{{ item }}"
     state: present
   loop: "{{ homebrew_packages | default([]) }}"
-  when: homebrew_packages is defined and homebrew_packages | length > 0
+  when: "'brew' in (dotm_platform | default(['macos', 'brew', 'gui'])) and homebrew_packages is defined and homebrew_packages | length > 0"
 
 - name: Install configured Homebrew casks
   community.general.homebrew_cask:
@@ -261,4 +263,14 @@
   environment:
     SUDO_ASKPASS: "{{ ansible_env.HOME }}/.local/bin/sudo-askpass"
   loop: "{{ homebrew_casks | default([]) }}"
-  when: homebrew_casks is defined and homebrew_casks | length > 0
+  when: "'brew' in (dotm_platform | default(['macos', 'brew', 'gui'])) and homebrew_casks is defined and homebrew_casks | length > 0"
+
+# apt installs run as one transaction and need root; a platform with apt is a Debian-family host.
+- name: Ensure configured apt packages are installed
+  ansible.builtin.apt:
+    name: "{{ apt_packages }}"
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600
+  become: true
+  when: "'apt' in (dotm_platform | default(['macos', 'brew', 'gui'])) and apt_packages is defined and apt_packages | length > 0"
