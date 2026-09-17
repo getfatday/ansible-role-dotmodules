@@ -2,3 +2,5 @@
 dotmodules_repo: "https://github.com/getfatday/dotmodules.git"
 dotmodules_install: []
 dotmodules_dest: "{{ ansible_env.HOME }}/.dotmodules"
+# Path to the brew binary used by the tap tasks (Apple silicon, Intel, Linuxbrew; PATH otherwise).
+dotmodules_brew_bin: "{{ lookup('ansible.builtin.first_found', ['/opt/homebrew/bin/brew', '/usr/local/bin/brew', '/home/linuxbrew/.linuxbrew/bin/brew'], errors='ignore') | default('brew', true) }}"

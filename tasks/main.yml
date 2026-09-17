@@ -241,12 +241,35 @@
 # Package managers are gated on the machine's platform capability list (dotm_platform, passed by
 # dotm sync from ~/.config/dotm/config.yml; a machine that declares none is a Mac with Homebrew).
 # Run Homebrew installation using direct modules (no sudo required)
-- name: Ensure configured Homebrew taps are tapped
-  community.general.homebrew_tap:
-    tap: "{{ item }}"
-    state: present
-  loop: "{{ homebrew_taps | default([]) }}"
+# Taps run through `brew tap` directly rather than community.general.homebrew_tap: when a tap
+# fails, that module mis-formats its own error ("not enough arguments for format string") and
+# hides brew's real message. Listing first keeps the task idempotent; a failure carries brew's
+# stdout and stderr.
+- name: List Homebrew taps already present
+  ansible.builtin.command:
+    argv:
+      - "{{ dotmodules_brew_bin }}"
+      - tap
+  register: dotmodules_brew_taps_present
+  changed_when: false
+  become: false
   when: "'brew' in (dotm_platform | default(['macos', 'brew', 'gui'])) and homebrew_taps is defined and homebrew_taps | length > 0"
+
+- name: Ensure configured Homebrew taps are tapped
+  ansible.builtin.command:
+    argv:
+      - "{{ dotmodules_brew_bin }}"
+      - tap
+      - "{{ item }}"
+  register: dotmodules_brew_tap_result
+  changed_when: dotmodules_brew_tap_result.rc == 0
+  failed_when: dotmodules_brew_tap_result.rc != 0
+  become: false
+  loop: "{{ homebrew_taps | default([]) }}"
+  when: >-
+    'brew' in (dotm_platform | default(['macos', 'brew', 'gui']))
+    and homebrew_taps is defined and homebrew_taps | length > 0
+    and (item | lower) not in (dotmodules_brew_taps_present.stdout_lines | default([]) | map('lower') | list)
 
 - name: Ensure configured Homebrew packages are installed
   community.general.homebrew:
