@@ -1,0 +1,118 @@
+---
+# github_releases: install pinned GitHub release assets without a Homebrew tap.
+#
+# Each entry names {repo, tag, asset, sha256, install: {app: <name.app>, bin: [<path in the tree>, ...]},
+# strip_components}. The asset is cached under ~/.local/share/dotm/releases/<repo>/<tag>/ and a stamp
+# file <tag dir>/.dotm-installed (the tag and sha256) marks a finished install.
+#
+# Three guards carry the grammar's promises:
+#   - fail closed: get_url verifies the sha256 of the download before anything lands in the tag dir;
+#     a mismatch fails that task and nothing after it runs for the entry;
+#   - idempotent: the stamp selects the pending entries; once it exists every task below skips the
+#     entry, so a second run changes nothing. The extraction is the tar macOS ships at /usr/bin/tar
+#     (bsdtar reads gzip tarballs and takes --strip-components as a count), guarded by creates: on the
+#     stamp so it never re-extracts over a finished install;
+#   - check-mode safe: the download is skipped when ansible_check_mode is set, so a dry run plans the
+#     whole task list without network and without depending on a destination directory check mode did
+#     not create. Extraction, copying, linking and stamping wait for the asset to be on disk.
+
+- name: Locate the release cache
+  ansible.builtin.set_fact:
+    dotm_release_root: "{{ ansible_env.HOME }}/.local/share/dotm/releases"
+
+- name: Check which pinned releases are already installed
+  ansible.builtin.stat:
+    path: "{{ dotm_release_root }}/{{ item.repo }}/{{ item.tag }}/.dotm-installed"
+  loop: "{{ github_releases | default([]) }}"
+  loop_control:
+    label: "{{ item.repo }}@{{ item.tag }}"
+  register: github_release_stamps
+
+- name: Select the pinned releases whose stamp is absent
+  ansible.builtin.set_fact:
+    github_releases_pending: >-
+      {{ github_release_stamps.results | rejectattr('stat.exists') | map(attribute='item') | list }}
+
+- name: Ensure the release cache directories exist
+  ansible.builtin.file:
+    path: "{{ dotm_release_root }}/{{ item.repo }}/{{ item.tag }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ github_releases_pending }}"
+  loop_control:
+    label: "{{ item.repo }}@{{ item.tag }}"
+
+- name: Download the pinned release assets (sha256 verified before anything lands)
+  ansible.builtin.get_url:
+    url: "https://github.com/{{ item.repo }}/releases/download/{{ item.tag }}/{{ item.asset }}"
+    dest: "{{ dotm_release_root }}/{{ item.repo }}/{{ item.tag }}/{{ item.asset }}"
+    checksum: "sha256:{{ item.sha256 }}"
+    mode: "0644"
+  loop: "{{ github_releases_pending }}"
+  loop_control:
+    label: "{{ item.repo }}@{{ item.tag }} {{ item.asset }}"
+  when: not ansible_check_mode
+
+- name: Check which pending assets are on disk (check mode downloads nothing)
+  ansible.builtin.stat:
+    path: "{{ dotm_release_root }}/{{ item.repo }}/{{ item.tag }}/{{ item.asset }}"
+  loop: "{{ github_releases_pending }}"
+  loop_control:
+    label: "{{ item.repo }}@{{ item.tag }} {{ item.asset }}"
+  register: github_release_assets
+
+- name: Select the pending releases whose asset is on disk
+  ansible.builtin.set_fact:
+    github_releases_ready: >-
+      {{ github_release_assets.results | selectattr('stat.exists') | map(attribute='item') | list }}
+
+- name: Extract the release assets into their tag directories
+  ansible.builtin.command:
+    cmd: >-
+      /usr/bin/tar -xzf
+      {{ dotm_release_root }}/{{ item.repo }}/{{ item.tag }}/{{ item.asset }}
+      -C {{ dotm_release_root }}/{{ item.repo }}/{{ item.tag }}
+      --strip-components {{ item.strip_components | default(0) | int }}
+    creates: "{{ dotm_release_root }}/{{ item.repo }}/{{ item.tag }}/.dotm-installed"
+  loop: "{{ github_releases_ready }}"
+  loop_control:
+    label: "{{ item.repo }}@{{ item.tag }} {{ item.asset }}"
+
+- name: Ensure the link and application directories exist
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - .local/bin
+    - Applications
+  when: github_releases_ready | length > 0
+
+- name: Copy release application bundles into ~/Applications
+  ansible.builtin.copy:
+    src: "{{ dotm_release_root }}/{{ item.repo }}/{{ item.tag }}/{{ item.install.app }}/"
+    dest: "{{ ansible_env.HOME }}/Applications/{{ item.install.app }}/"
+    remote_src: true
+    mode: preserve
+  loop: "{{ github_releases_ready | selectattr('install.app', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.repo }}@{{ item.tag }} {{ item.install.app }}"
+
+- name: Link release binaries into ~/.local/bin
+  ansible.builtin.file:
+    src: "{{ dotm_release_root }}/{{ item.0.repo }}/{{ item.0.tag }}/{{ item.1 }}"
+    dest: "{{ ansible_env.HOME }}/.local/bin/{{ item.1 | basename }}"
+    state: link
+    force: true
+  loop: "{{ github_releases_ready | subelements('install.bin', skip_missing=True) }}"
+  loop_control:
+    label: "{{ item.0.repo }}@{{ item.0.tag }} {{ item.1 }}"
+
+- name: Stamp each installed release with its tag and sha256
+  ansible.builtin.copy:
+    dest: "{{ dotm_release_root }}/{{ item.repo }}/{{ item.tag }}/.dotm-installed"
+    content: "tag: {{ item.tag }}\nsha256: {{ item.sha256 }}\n"
+    mode: "0644"
+  loop: "{{ github_releases_ready }}"
+  loop_control:
+    label: "{{ item.repo }}@{{ item.tag }}"
