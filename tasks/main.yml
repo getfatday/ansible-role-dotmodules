@@ -288,6 +288,11 @@
   loop: "{{ homebrew_casks | default([]) }}"
   when: "'brew' in (dotm_platform | default(['macos', 'brew', 'gui'])) and homebrew_casks is defined and homebrew_casks | length > 0"
 
+# Pinned GitHub releases install from a tag and sha256 the module declares, without a Homebrew tap.
+- name: Install pinned GitHub releases
+  ansible.builtin.include_tasks: github_releases.yml
+  when: github_releases is defined and github_releases | length > 0
+
 # apt installs run as one transaction and need root; a platform with apt is a Debian-family host.
 - name: Ensure configured apt packages are installed
   ansible.builtin.apt:

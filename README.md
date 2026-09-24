@@ -84,6 +84,7 @@ Each module can specify the following variables in its `config.yml`:
 - **`mas_installed_apps`**: List of Mac App Store apps to install
 - **`stow_dirs`**: List of directories to deploy via GNU Stow
 - **`mergeable_files`**: List of files to merge with other modules
+- **`github_releases`**: List of pinned GitHub release assets to install without a package manager (see [Pinned GitHub releases](#pinned-github-releases))
 
 ### Example Module Configuration
 
@@ -101,6 +102,45 @@ mergeable_files:
 stow_dirs:
   - shell-zsh
 ```
+
+### Pinned GitHub releases
+
+`github_releases` installs a tool from a GitHub release asset pinned by tag and sha256, so a
+module does not need a third-party Homebrew tap for it. The task set is platform-independent:
+it runs wherever the reduced configuration carries at least one entry.
+
+Each entry:
+
+```yaml
+github_releases:
+  - repo: owner/name            # GitHub repository; redirects are followed
+    tag: "1.2.3"                # release tag, pinned on purpose
+    asset: name.tar.gz          # gzip tarball attached to that release
+    sha256: <64 hex chars>      # checksum of the asset
+    install:
+      app: name.app             # optional: bundle copied into ~/Applications
+      bin:                      # optional: paths inside the extracted tree linked into ~/.local/bin
+        - name.app/Contents/MacOS/name
+    strip_components: 0         # optional, default 0; passed to tar --strip-components
+```
+
+How an entry is applied (`tasks/github_releases.yml`):
+
+1. The asset is cached under `~/.local/share/dotm/releases/<repo>/<tag>/`.
+2. `get_url` downloads it with `checksum: sha256:<sha256>`. The download fails closed: on a
+   mismatch the task fails, nothing is written to the tag directory and no later task runs for
+   that entry (no extraction, no link, no `.app`, no stamp).
+3. The tarball is extracted with the tar the OS ships (`/usr/bin/tar`, bsdtar on macOS), then
+   `install.app` is copied into `~/Applications` and each `install.bin` path is linked into
+   `~/.local/bin`.
+4. A stamp file `<tag dir>/.dotm-installed` records the tag and sha256.
+
+Idempotence: entries whose stamp exists are filtered out before anything else runs, and the tar
+command carries `creates:` on the stamp, so a second run reports `changed=0` for every installed
+entry. Changing the tag or the sha256 selects a new tag directory and installs again.
+
+Check mode: the download is skipped under `--check`, and the tasks that depend on the asset being
+on disk skip with it, so a dry run plans the whole task list without network access.
 
 ---
 
